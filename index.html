@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国自然项目成果展示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f5f5f5;
+        }
+        .title-font {
+            font-family: 'Noto Serif SC', serif;
+        }
+        .header-bg {
+            background-image: url('resources/bg_academic.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+        }
+        .header-bg::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.9), rgba(59, 130, 246, 0.8));
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .section-card {
+            background: linear-gradient(135deg, #1e3a8a, #1e40af);
+            border-radius: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            height: fit-content;
+        }
+        .section-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(30, 58, 138, 0.3);
+        }
+        .section-card.active {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+        }
+        .section-content {
+            display: none;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+        .section-content.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .edit-mode {
+            border: 2px dashed #f97316 !important;
+            background-color: rgba(249, 115, 22, 0.1) !important;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(30, 58, 138, 0.3);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #059669, #10b981);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .main-title {
+            color: #d4af37;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .primary-title {
+            color: #1e3a8a;
+        }
+        .secondary-title {
+            color: #1e40af;
+        }
+        .bg-controls {
+            position: fixed;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            z-index: 100;
+        }
+        .section-content-wrapper {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .section-content-wrapper.expanded {
+            max-height: 2000px;
+        }
+        .modal-content {
+            pointer-events: auto;
+        }
+        .modal {
+            pointer-events: auto;
+        }
+        
+        /* Drag and Drop Styles */
+        [draggable="true"] {
+            cursor: move;
+        }
+        
+        [draggable="true"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 255, 255, 0.1);
+        }
+        
+        .dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        
+        .drop-zone {
+            border: 2px dashed #f97316;
+            background-color: rgba(249, 115, 22, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 背景控制按钮 -->
+    <div class="bg-controls edit-btn hidden">
+        <button id="changeBgBtn" class="btn-primary text-white px-4 py-2 rounded-lg shadow-lg mb-2 block">
+            更换背景
+        </button>
+        <input type="file" id="bgInput" accept="image/*" class="hidden">
+    </div>
+
+    <!-- 顶部导航 -->
+    <nav class="glass-effect shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div class="title-font text-2xl font-bold text-gray-800">
+                    国自然项目成果展示
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="loginBtn" class="btn-primary text-white px-6 py-2 rounded-lg font-medium">
+                        管理员登录
+                    </button>
+                    <button id="logoutBtn" class="btn-danger text-white px-6 py-2 rounded-lg font-medium hidden">
+                        退出登录
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main>
+        <!-- 顶部背景区域 -->
+        <div class="header-bg relative">
+            <div class="relative z-10 container mx-auto px-6 py-16">
+                <div class="text-center mb-8">
+                    <h1 class="main-title title-font text-5xl font-bold mb-4">
+                        国自然项目成果展示
+                    </h1>
+                </div>
+            </div>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="container mx-auto px-6 py-8">
+            <!-- 项目基本信息 -->
+            <div class="glass-effect rounded-2xl shadow-xl p-8 mb-6 fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="primary-title title-font text-3xl font-bold">项目基本信息</h2>
+                    <button id="editProjectBtn" class="edit-btn hidden bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors">
+                        编辑
+                    </button>
+                </div>
+                <div id="projectInfo" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 内容会通过JS动态加载 -->
+                </div>
+            </div>
+
+            <!-- 项目简介 -->
+            <div class="glass-effect rounded-2xl shadow-xl p-8 mb-6 fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="primary-title title-font text-3xl font-bold">项目简介</h2>
+                    <button id="editIntroBtn" class="edit-btn hidden bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors">
+                        编辑
+                    </button>
+                </div>
+                <div id="projectIntro" class="text-gray-700 leading-relaxed">
+                    <!-- 内容会通过JS动态加载 -->
+                </div>
+            </div>
+
+            <!-- 成果展示 -->
+            <div class="fade-in">
+                <h2 class="primary-title title-font text-3xl font-bold mb-8 text-center">成果展示</h2>
+                
+                <!-- 四个板块 -->
+                <div class="space-y-6 mb-8">
+                    <!-- 论文成果 -->
+                    <div class="section-card text-white w-full" data-section="papers">
+                        <div class="flex justify-between items-center p-6">
+                            <h3 class="title-font text-2xl font-bold">论文成果</h3>
+                            <button class="toggle-btn bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all" data-section="papers">
+                                展开查看
+                            </button>
+                        </div>
+                        <div class="section-content mt-0">
+                            <div class="px-6 pb-6">
+                                <div class="papers-container space-y-4">
+                                    <!-- 论文内容会通过JS动态加载 -->
+                                </div>
+                                <div class="edit-btn hidden mt-4">
+                                    <button class="add-paper-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
+                                        新增论文
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 优秀学生 -->
+                    <div class="section-card text-white w-full" data-section="students">
+                        <div class="flex justify-between items-center p-6">
+                            <h3 class="title-font text-2xl font-bold">优秀学生</h3>
+                            <button class="toggle-btn bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all" data-section="students">
+                                展开查看
+                            </button>
+                        </div>
+                        <div class="section-content mt-0">
+                            <div class="px-6 pb-6">
+                                <div class="students-container space-y-4">
+                                    <!-- 学生内容会通过JS动态加载 -->
+                                </div>
+                                <div class="edit-btn hidden mt-4">
+                                    <button class="add-student-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
+                                        新增学生
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 荣誉奖项 -->
+                    <div class="section-card text-white w-full" data-section="awards">
+                        <div class="flex justify-between items-center p-6">
+                            <h3 class="title-font text-2xl font-bold">荣誉奖项</h3>
+                            <button class="toggle-btn bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all" data-section="awards">
+                                展开查看
+                            </button>
+                        </div>
+                        <div class="section-content mt-0">
+                            <div class="px-6 pb-6">
+                                <div class="awards-container space-y-4">
+                                    <!-- 奖项内容会通过JS动态加载 -->
+                                </div>
+                                <div class="edit-btn hidden mt-4">
+                                    <button class="add-award-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
+                                        新增奖项
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 学术会议 -->
+                    <div class="section-card text-white w-full" data-section="conferences">
+                        <div class="flex justify-between items-center p-6">
+                            <h3 class="title-font text-2xl font-bold">学术会议</h3>
+                            <button class="toggle-btn bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all" data-section="conferences">
+                                展开查看
+                            </button>
+                        </div>
+                        <div class="section-content mt-0">
+                            <div class="px-6 pb-6">
+                                <div class="conferences-container space-y-4">
+                                    <!-- 会议内容会通过JS动态加载 -->
+                                </div>
+                                <div class="edit-btn hidden mt-4">
+                                    <button class="add-conference-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
+                                        新增会议
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部 -->
+    <footer class="glass-effect mt-16 py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-gray-600">© 国自然项目成果展示平台. 保留所有权利.</p>
+        </div>
+    </footer>
+
+    <!-- 登录模态框 -->
+    <div id="loginModal" class="modal">
+        <div class="glass-effect rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <h3 class="title-font text-2xl font-bold text-gray-800 mb-6 text-center">管理员登录</h3>
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                    <input type="text" id="username" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                    <input type="password" id="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+                <div class="flex space-x-4">
+                    <button type="submit" class="flex-1 btn-primary text-white py-2 rounded-lg font-medium">
+                        登录
+                    </button>
+                    <button type="button" id="cancelLogin" class="flex-1 bg-gray-500 text-white py-2 rounded-lg font-medium">
+                        取消
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 编辑模态框 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content glass-effect rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <h3 id="editModalTitle" class="title-font text-2xl font-bold text-gray-800 mb-6">编辑内容</h3>
+            <div id="editModalContent">
+                <!-- 动态内容 -->
+            </div>
+            <div class="flex space-x-4 mt-6">
+                <button id="saveEdit" class="flex-1 btn-success text-white py-2 rounded-lg font-medium">
+                    保存
+                </button>
+                <button id="cancelEdit" class="flex-1 bg-gray-500 text-white py-2 rounded-lg font-medium">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认删除模态框 -->
+    <div id="confirmModal" class="modal">
+        <div class="glass-effect rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <h3 class="title-font text-xl font-bold text-gray-800 mb-4">确认删除</h3>
+            <p id="confirmMessage" class="text-gray-600 mb-6">确定要删除这个项目吗？</p>
+            <div class="flex space-x-4">
+                <button id="confirmDelete" class="flex-1 btn-danger text-white py-2 rounded-lg font-medium">
+                    确认删除
+                </button>
+                <button id="cancelDelete" class="flex-1 bg-gray-500 text-white py-2 rounded-lg font-medium">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
