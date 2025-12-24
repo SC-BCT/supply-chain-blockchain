@@ -3,6 +3,7 @@ let isLoggedIn = false;
 let currentEditData = null;
 let currentPaperId = null;
 let draggedElement = null;
+let currentScale = 1; // 图片当前缩放比例
 
 // DOM元素
 const elements = {
@@ -14,7 +15,11 @@ const elements = {
     imageModal: document.getElementById('imageModal'),
     modalImage: document.getElementById('modalImage'),
     homepageInput: document.getElementById('homepageInput'),
-    keyInput: document.getElementById('keyInput')
+    keyInput: document.getElementById('keyInput'),
+    imageLoading: document.getElementById('imageLoading'),
+    zoomInBtn: document.getElementById('zoomInBtn'),
+    zoomOutBtn: document.getElementById('zoomOutBtn'),
+    resetZoomBtn: document.getElementById('resetZoomBtn')
 };
 
 // 数据管理类
@@ -643,13 +648,64 @@ async function savePaperDetails(paperDetails) {
 
 // 打开图片模态框
 function openImageModal(imageSrc) {
+    // 显示加载指示器
+    if (elements.imageLoading) {
+        elements.imageLoading.classList.add('show');
+    }
+    
+    // 重置缩放比例
+    currentScale = 1;
+    elements.modalImage.style.transform = 'scale(1)';
+    
+    // 设置图片源
     elements.modalImage.src = imageSrc;
+    
+    // 显示模态框
     elements.imageModal.classList.add('show');
+    
+    // 显示缩放控制按钮
+    if (elements.zoomInBtn) elements.zoomInBtn.classList.remove('hidden');
+    if (elements.zoomOutBtn) elements.zoomOutBtn.classList.remove('hidden');
+    if (elements.resetZoomBtn) elements.resetZoomBtn.classList.remove('hidden');
+    
+    // 图片加载完成后隐藏加载指示器
+    elements.modalImage.onload = function() {
+        if (elements.imageLoading) {
+            elements.imageLoading.classList.remove('show');
+        }
+    };
 }
 
 // 关闭图片模态框
 function closeImageModal() {
     elements.imageModal.classList.remove('show');
+    
+    // 隐藏缩放控制按钮
+    if (elements.zoomInBtn) elements.zoomInBtn.classList.add('hidden');
+    if (elements.zoomOutBtn) elements.zoomOutBtn.classList.add('hidden');
+    if (elements.resetZoomBtn) elements.resetZoomBtn.classList.add('hidden');
+    
+    // 重置缩放比例
+    currentScale = 1;
+    elements.modalImage.style.transform = 'scale(1)';
+}
+
+// 图片缩放功能
+function zoomIn() {
+    currentScale += 0.25;
+    if (currentScale > 3) currentScale = 3; // 最大缩放限制
+    elements.modalImage.style.transform = `scale(${currentScale})`;
+}
+
+function zoomOut() {
+    currentScale -= 0.25;
+    if (currentScale < 0.5) currentScale = 0.5; // 最小缩放限制
+    elements.modalImage.style.transform = `scale(${currentScale})`;
+}
+
+function resetZoom() {
+    currentScale = 1;
+    elements.modalImage.style.transform = 'scale(1)';
 }
 
 // 删除图片
@@ -1096,12 +1152,39 @@ function bindEvents() {
     if (addHomepageBtn) addHomepageBtn.addEventListener('click', () => triggerImageUpload('homepage'));
     if (addKeyBtn) addKeyBtn.addEventListener('click', () => triggerImageUpload('key'));
     
+    // 图片模态框点击事件 - 点击任意位置关闭
+    if (elements.imageModal) {
+        elements.imageModal.addEventListener('click', function(e) {
+            // 如果点击的是图片模态框背景（不是图片本身），则关闭模态框
+            if (e.target === elements.imageModal || e.target === elements.modalImage) {
+                closeImageModal();
+            }
+        });
+    }
+    
+    // 缩放按钮事件
+    if (elements.zoomInBtn) {
+        elements.zoomInBtn.addEventListener('click', zoomIn);
+    }
+    
+    if (elements.zoomOutBtn) {
+        elements.zoomOutBtn.addEventListener('click', zoomOut);
+    }
+    
+    if (elements.resetZoomBtn) {
+        elements.resetZoomBtn.addEventListener('click', resetZoom);
+    }
+    
     // ESC键关闭模态框
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             const activeModal = document.querySelector('.modal.show');
             if (activeModal) {
-                activeModal.classList.remove('show');
+                if (activeModal === elements.imageModal) {
+                    closeImageModal();
+                } else {
+                    activeModal.classList.remove('show');
+                }
             }
         }
     });
