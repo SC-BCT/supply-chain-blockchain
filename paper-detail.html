@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>论文详情 - 国自然项目成果展示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f5f5f5;
+        }
+        .title-font {
+            font-family: 'Noto Serif SC', serif;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(30, 58, 138, 0.3);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #059669, #10b981);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            cursor: pointer;
+        }
+        .image-modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+        .edit-mode {
+            border: 2px dashed #f97316 !important;
+            background-color: rgba(249, 115, 22, 0.1) !important;
+        }
+        .primary-title {
+            color: #1e3a8a;
+        }
+        .image-upload-area {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+        .image-upload-area:hover {
+            border-color: #3b82f6;
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+        .image-item {
+            position: relative;
+            overflow: hidden;
+        }
+        .image-item:hover .image-overlay {
+            opacity: 1;
+        }
+        .image-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        /* 添加段落样式 */
+        .paragraph-content {
+            text-indent: 2em; /* 首行缩进2字符 */
+            line-height: 1.8; /* 行高稍大 */
+            margin-bottom: 1em; /* 段间距稍大 */
+        }
+        .paragraph-content p {
+            text-indent: 2em;
+            line-height: 1.8;
+            margin-bottom: 1em;
+        }
+        .paragraph-content p:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <nav class="glass-effect shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div class="title-font text-2xl font-bold text-gray-800">
+                    论文详情
+                </div>
+                <div class="title-font text-xl font-bold primary-title">
+                    论文详情
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="loginBtn" class="btn-primary text-white px-6 py-2 rounded-lg font-medium">
+                        管理员登录
+                    </button>
+                    <button id="logoutBtn" class="btn-danger text-white px-6 py-2 rounded-lg font-medium hidden">
+                        退出登录
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="container mx-auto px-6 py-8">
+        <!-- 论文基本信息 -->
+        <div class="glass-effect rounded-2xl shadow-xl p-8 mb-8 fade-in">
+            <h1 id="paperTitle" class="title-font text-3xl font-bold primary-title mb-4">论文标题</h1>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-gray-700">
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">发表期刊</label>
+                    <p id="paperJournal" class="text-gray-900">-</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">发表时间</label>
+                    <p id="paperTime" class="text-gray-900">-</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">论文作者</label>
+                    <p id="paperAuthors" class="text-gray-900">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 论文详情 -->
+        <div class="glass-effect rounded-2xl shadow-xl p-8 mb-8 fade-in">
+            <h2 class="title-font text-2xl font-bold primary-title mb-6">论文详情</h2>
+            
+            <!-- 研究背景 -->
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-lg font-semibold text-gray-800">研究背景</h3>
+                    <button id="editBackgroundBtn" class="edit-btn hidden bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 transition-colors text-sm">
+                        编辑
+                    </button>
+                </div>
+                <div id="backgroundContent" class="paragraph-content text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-4">
+                    <!-- 内容会通过JS动态加载 -->
+                </div>
+            </div>
+
+            <!-- 研究内容 -->
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-lg font-semibold text-gray-800">研究内容</h3>
+                    <button id="editMainContentBtn" class="edit-btn hidden bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 transition-colors text-sm">
+                        编辑
+                    </button>
+                </div>
+                <div id="mainContent" class="paragraph-content text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-4">
+                    <!-- 内容会通过JS动态加载 -->
+                </div>
+            </div>
+
+            <!-- 研究结论 -->
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-lg font-semibold text-gray-800">研究结论</h3>
+                    <button id="editConclusionBtn" class="edit-btn hidden bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 transition-colors text-sm">
+                        编辑
+                    </button>
+                </div>
+                <div id="conclusionContent" class="paragraph-content text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-4">
+                    <!-- 内容会通过JS动态加载 -->
+                </div>
+            </div>
+
+            <!-- 全文链接 -->
+            <div>
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-lg font-semibold text-gray-800">全文链接</h3>
+                    <button id="editLinkBtn" class="edit-btn hidden bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 transition-colors text-sm">
+                        编辑
+                    </button>
+                </div>
+                <div id="linkContent" class="text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-4">
+                    <!-- 内容会通过JS动态加载 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 论文首页和关键内容 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- 论文首页 -->
+            <div class="glass-effect rounded-2xl shadow-xl p-8 fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="title-font text-2xl font-bold primary-title">论文首页</h2>
+                    <button id="addHomepageBtn" class="edit-btn hidden bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                        添加图片
+                    </button>
+                </div>
+                <div id="homepageImages" class="space-y-4">
+                    <!-- 图片会通过JS动态加载 -->
+                </div>
+                <div id="homepageUpload" class="edit-btn hidden mt-4">
+                    <input type="file" id="homepageInput" accept="image/*" multiple class="hidden">
+                    <div class="image-upload-area rounded-lg p-8 text-center cursor-pointer" onclick="document.getElementById('homepageInput').click()">
+                        <p class="text-gray-500">点击选择图片或拖拽到此处</p>
+                        <p class="text-sm text-gray-400 mt-2">支持多张图片上传</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关键内容 -->
+            <div class="glass-effect rounded-2xl shadow-xl p-8 fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="title-font text-2xl font-bold primary-title">关键内容</h2>
+                    <button id="addKeyBtn" class="edit-btn hidden bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                        添加图片
+                    </button>
+                </div>
+                <div id="keyImages" class="space-y-4">
+                    <!-- 图片会通过JS动态加载 -->
+                </div>
+                <div id="keyUpload" class="edit-btn hidden mt-4">
+                    <input type="file" id="keyInput" accept="image/*" multiple class="hidden">
+                    <div class="image-upload-area rounded-lg p-8 text-center cursor-pointer" onclick="document.getElementById('keyInput').click()">
+                        <p class="text-gray-500">点击选择图片或拖拽到此处</p>
+                        <p class="text-sm text-gray-400 mt-2">支持多张图片上传</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 图片放大模态框 -->
+    <div id="imageModal" class="image-modal">
+        <img id="modalImage" src="" alt="放大图片">
+    </div>
+
+    <!-- 编辑模态框 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content glass-effect rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <h3 id="editModalTitle" class="title-font text-2xl font-bold text-gray-800 mb-6">编辑内容</h3>
+            <div id="editModalContent">
+                <!-- 动态内容 -->
+            </div>
+            <div class="flex space-x-4 mt-6">
+                <button id="saveEdit" class="flex-1 btn-success text-white py-2 rounded-lg font-medium">
+                    保存
+                </button>
+                <button id="cancelEdit" class="flex-1 bg-gray-500 text-white py-2 rounded-lg font-medium">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 登录模态框 -->
+    <div id="loginModal" class="modal">
+        <div class="glass-effect rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <h3 class="title-font text-2xl font-bold text-gray-800 mb-6 text-center">管理员登录</h3>
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                    <input type="text" id="username" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                    <input type="password" id="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+                <div class="flex space-x-4">
+                    <button type="submit" class="flex-1 btn-primary text-white py-2 rounded-lg font-medium">
+                        登录
+                    </button>
+                    <button type="button" id="cancelLogin" class="flex-1 bg-gray-500 text-white py-2 rounded-lg font-medium">
+                        取消
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="image-scanner.js"></script>
+    <script src="paper-detail.js"></script>
+</body>
+</html>
