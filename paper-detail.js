@@ -306,9 +306,10 @@ async function loadPaperDetails() {
     // 2. 从localStorage加载
     if (!paperDetails) {
         const localPaperDetails = DataManager.load('paperDetails', {});
-        if (localPaperDetails[currentPaperId]) {
-            console.log(`从localStorage获取到论文${currentPaperId}的详情`, localPaperDetails[currentPaperId]);
-            paperDetails = localPaperDetails[currentPaperId];
+        // 尝试用数字ID和字符串ID两种方式查找
+        if (localPaperDetails[currentPaperId] || localPaperDetails[String(currentPaperId)]) {
+            paperDetails = localPaperDetails[currentPaperId] || localPaperDetails[String(currentPaperId)];
+            console.log(`从localStorage获取到论文${currentPaperId}的详情`, paperDetails);
         }
     }
     
@@ -323,9 +324,10 @@ async function loadPaperDetails() {
                 
                 // 检查数据格式
                 if (jsonData && typeof jsonData === 'object') {
-                    // 格式1: { "1": {...}, "2": {...} }
-                    if (jsonData[currentPaperId]) {
-                        paperDetails = jsonData[currentPaperId];
+                    // 格式1: { "1": {...}, "2": {...} } 或 { 1: {...}, 2: {...} }
+                    // 尝试用数字ID和字符串ID两种方式查找
+                    if (jsonData[currentPaperId] || jsonData[String(currentPaperId)]) {
+                        paperDetails = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
                         console.log(`从对象格式找到论文${currentPaperId}的详情:`, paperDetails);
                     }
                     // 格式2: [{paperId: 1, ...}, {paperId: 2, ...}]
@@ -333,7 +335,7 @@ async function loadPaperDetails() {
                         console.log('数据是数组格式，搜索论文ID:', currentPaperId);
                         const item = jsonData.find(item => {
                             const id = item.paperId || item.id;
-                            return id && parseInt(id) === currentPaperId;
+                            return id && (parseInt(id) === currentPaperId || String(id) === String(currentPaperId));
                         });
                         
                         if (item) {
@@ -1087,3 +1089,4 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
