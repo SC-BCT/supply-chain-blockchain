@@ -645,6 +645,18 @@ function openImageModal(imageSrc) {
         
         // 显示模态框
         elements.imageModal.classList.add('show');
+        
+        // 显示缩放按钮
+        if (elements.zoomInBtn) elements.zoomInBtn.classList.remove('hidden');
+        if (elements.zoomOutBtn) elements.zoomOutBtn.classList.remove('hidden');
+        if (elements.resetZoomBtn) elements.resetZoomBtn.classList.remove('hidden');
+        
+        // 确保图片有初始缩放
+        setTimeout(() => {
+            if (elements.modalImage) {
+                elements.modalImage.style.transform = `scale(${currentScale})`;
+            }
+        }, 50);
     }
 }
 
@@ -652,6 +664,11 @@ function openImageModal(imageSrc) {
 function closeImageModal() {
     if (elements.imageModal) {
         elements.imageModal.classList.remove('show');
+        
+        // 隐藏缩放按钮
+        if (elements.zoomInBtn) elements.zoomInBtn.classList.add('hidden');
+        if (elements.zoomOutBtn) elements.zoomOutBtn.classList.add('hidden');
+        if (elements.resetZoomBtn) elements.resetZoomBtn.classList.add('hidden');
     }
 }
 
@@ -1051,27 +1068,34 @@ function bindEvents() {
     if (addHomepageBtn) addHomepageBtn.addEventListener('click', () => triggerImageUpload('homepage'));
     if (addKeyBtn) addKeyBtn.addEventListener('click', () => triggerImageUpload('key'));
     
-    // 图片模态框点击事件
+    // 图片模态框点击事件 - 点击任意位置都可以关闭
     if (elements.imageModal) {
         elements.imageModal.addEventListener('click', function(e) {
-            if (e.target === elements.imageModal) {
-                closeImageModal();
-            }
+            closeImageModal();
         });
     }
     
-    // 缩放按钮事件
-    if (elements.zoomInBtn) {
-        elements.zoomInBtn.addEventListener('click', zoomIn);
-    }
-    
-    if (elements.zoomOutBtn) {
-        elements.zoomOutBtn.addEventListener('click', zoomOut);
-    }
-    
-    if (elements.resetZoomBtn) {
-        elements.resetZoomBtn.addEventListener('click', resetZoom);
-    }
+// 缩放按钮事件 - 阻止事件冒泡，避免点击按钮时关闭模态框
+if (elements.zoomInBtn) {
+    elements.zoomInBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); // 阻止事件冒泡
+        zoomIn();
+    });
+}
+
+if (elements.zoomOutBtn) {
+    elements.zoomOutBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); // 阻止事件冒泡
+        zoomOut();
+    });
+}
+
+if (elements.resetZoomBtn) {
+    elements.resetZoomBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); // 阻止事件冒泡
+        resetZoom();
+    });
+}
     
     // ESC键关闭模态框
     document.addEventListener('keydown', function(e) {
@@ -1089,4 +1113,5 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
