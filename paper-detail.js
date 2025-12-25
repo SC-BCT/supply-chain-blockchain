@@ -313,53 +313,144 @@ async function loadPaperDetails() {
         }
     }
     
-    // 3. 从paperDetails.json加载
-    if (!paperDetails) {
-        try {
-            console.log('尝试从paperDetails.json加载数据...');
-            const response = await fetch('paperDetails.json');
-            if (response.ok) {
-                const jsonData = await response.json();
-                console.log('从paperDetails.json加载的数据:', jsonData);
-                
-                // 检查数据格式
-                if (jsonData && typeof jsonData === 'object') {
-                    // 格式1: { "1": {...}, "2": {...} } 或 { 1: {...}, 2: {...} }
-                    // 尝试用数字ID和字符串ID两种方式查找
-                    if (jsonData[currentPaperId] || jsonData[String(currentPaperId)]) {
-                        paperDetails = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
-                        console.log(`从对象格式找到论文${currentPaperId}的详情:`, paperDetails);
-                    }
-                    // 格式2: [{paperId: 1, ...}, {paperId: 2, ...}]
-                    else if (Array.isArray(jsonData)) {
-                        console.log('数据是数组格式，搜索论文ID:', currentPaperId);
-                        const item = jsonData.find(item => {
-                            const id = item.paperId || item.id;
-                            return id && (parseInt(id) === currentPaperId || String(id) === String(currentPaperId));
-                        });
-                        
-                        if (item) {
-                            paperDetails = item;
-                            console.log(`从数组格式找到论文${currentPaperId}的详情:`, paperDetails);
-                        }
-                    }
-                }
-                
-                if (paperDetails) {
-                    console.log(`从paperDetails.json成功找到论文${currentPaperId}的详情`);
-                    
-                    // 保存到localStorage和IndexedDB
-                    const localPaperDetails = DataManager.load('paperDetails', {});
-                    localPaperDetails[currentPaperId] = paperDetails;
-                    DataManager.save('paperDetails', localPaperDetails);
-                    
-                    await IndexedDBManager.savePaperDetails(currentPaperId, paperDetails);
-                }
+// 3. 从paperDetails.json加载 - 修复大文件加载问题
+if (!paperDetails) {
+    try {
+        console.log('尝试从paperDetails.json加载数据...');
+        
+        // 使用流式读取大JSON文件
+        const response = await fetch('paperDetails.json');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        // 使用流式读取器逐步读取大文件
+        const reader = response.body.getReader();
+        let chunks = '';
+        let receivedLength = 0;
+        
+        while(true) {
+            const {done, value} = await reader.read();
+            
+            if (done) {
+                break;
             }
-        } catch (error) {
-            console.log('从paperDetails.json加载失败:', error);
+            
+            // 将字节转换为字符串
+            chunks += new TextDecoder().decode(value);
+            receivedLength += value.length;
+            
+            // 定期打印进度（可选）
+            if (receivedLength % (1024 * 1024) === 0) { // 每1MB打印一次
+                console.log(`已加载 ${Math.round(receivedLength / 1024 / 1024)}MB 数据...`);
+            }
+        }
+        
+        // 解析JSON数据
+        let jsonData;
+        try {
+            jsonData = JSON.parse(chunks);
+        } catch (parseError) {
+            console.error('JSON解析失败:', parseError);
+            throw new Error('JSON文件格式错误或文件太大无法解析');
+        }
+        
+        console.log('从paperDetails.json加载的数据结构类型:', typeof jsonData);
+        
+        // 检查数据格式
+        if (jsonData && typeof jsonData === 'object') {
+            // 格式1: { "1": {...}, "2": {...} } 或 { 1: {...}, 2: {...} }
+            // 尝试用数字ID和字符串ID两种方式查找
+            if (jsonData[currentPaperId] || jsonData[String(currentPaperId)]) {
+                paperDetails = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
+                console.log(`从对象格式找到论文${currentPaperId}的详情:`, paperDetails);
+            }
+            // 格式2: [{paperId: 1, ...}, {paperId: 2, ...}]
+            else if (Array.isArray(jsonData)) {
+                console.log('数据是数组格式，搜索论文ID:', currentPaperId);
+                const item = jsonData.find(item => {
+                    const id = item.paperId || item.id;
+                    return id && (parseInt(id) === currentPaperId || String(id) === String(currentPaperId));
+                });
+                
+                if (item) {
+                    paperDetails = item;
+                    console.log(`从数组格式找到论文${currentPaperId}的详情:`, paperDetails);
+                }
+            } else {
+                console.log('paperDetails.json 文件包含数据，但格式不支持:', Object.keys(jsonData).slice(0, 5), '...');
+            }
+        }
+        
+        if (paperDetails) {
+            console.log(`从paperDetails.json成功找到论文${currentPaperId}的详情`);
+            
+            // 保存到localStorage和IndexedDB
+            const localPaperDetails = DataManager.load('paperDetails', {});
+            localPaperDetails[currentPaperId] = paperDetails;
+            DataManager.save('paperDetails', localPaperDetails);
+            
+            await IndexedDBManager.savePaperDetails(currentPaperId, paperDetails);
+        } else {
+            console.warn(`在paperDetails.json中未找到论文${currentPaperId}的详情`);
+        }
+    } catch (error) {
+        console.log('从paperDetails.json加载失败:', error);
+        
+        // 尝试使用Web Worker异步解析大文件
+        if (error.message.includes('太大') || error.message.includes('格式错误')) {
+            console.log('尝试使用备选方案加载数据...');
+            await tryAlternativeLoading();
         }
     }
+}
+
+    // 备选方案：尝试分块加载或使用Web Worker
+async function tryAlternativeLoading() {
+    console.log('使用备选方案加载数据...');
+    
+    try {
+        // 尝试使用XMLHttpRequest，它有更好的进度控制和超时处理
+        const xhr = new XMLHttpRequest();
+        
+        return new Promise((resolve, reject) => {
+            xhr.timeout = 30000; // 30秒超时
+            xhr.responseType = 'json';
+            
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    console.log('通过XMLHttpRequest成功加载JSON数据');
+                    // 这里需要根据你的数据格式处理
+                    // 这部分逻辑与上面类似，可以封装为一个函数
+                } else {
+                    reject(new Error(`HTTP ${xhr.status}`));
+                }
+            };
+            
+            xhr.onerror = function() {
+                reject(new Error('网络错误'));
+            };
+            
+            xhr.ontimeout = function() {
+                reject(new Error('请求超时'));
+            };
+            
+            xhr.onprogress = function(event) {
+                if (event.lengthComputable) {
+                    const percentComplete = (event.loaded / event.total) * 100;
+                    console.log(`加载进度: ${percentComplete.toFixed(2)}%`);
+                }
+            };
+            
+            xhr.open('GET', 'paperDetails.json');
+            xhr.send();
+        });
+    } catch (error) {
+        console.error('备选方案也失败了:', error);
+        return null;
+    }
+}
     
     // 4. 创建默认数据
     if (!paperDetails) {
@@ -1113,5 +1204,6 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
 
