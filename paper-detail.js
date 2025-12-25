@@ -312,59 +312,67 @@ async function loadPaperDetails() {
             console.log(`从localStorage获取到论文${currentPaperId}的详情`, paperDetails);
         }
     }
-    
-// 3. 从paperDetails.json加载 - 修复大文件加载问题
+
+    // 3. 从paperDetails.json加载 - 简化版修复
 if (!paperDetails) {
     try {
         console.log('尝试从paperDetails.json加载数据...');
         
-        // 使用流式读取大JSON文件
-        const response = await fetch('paperDetails.json');
+        // 添加重试机制和超时设置
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
+        
+        const response = await fetch('paperDetails.json', {
+            signal: controller.signal,
+            headers: {
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        // 使用流式读取器逐步读取大文件
-        const reader = response.body.getReader();
-        let chunks = '';
-        let receivedLength = 0;
-        
-        while(true) {
-            const {done, value} = await reader.read();
+            console.error(`HTTP ${response.status}: ${response.statusText}`);
             
-            if (done) {
-                break;
+            // 尝试检查文件是否存在
+            try {
+                const headResponse = await fetch('paperDetails.json', { method: 'HEAD' });
+                console.log('HEAD请求结果:', headResponse.status, headResponse.statusText);
+            } catch (headError) {
+                console.error('文件HEAD请求失败:', headError);
             }
             
-            // 将字节转换为字符串
-            chunks += new TextDecoder().decode(value);
-            receivedLength += value.length;
-            
-            // 定期打印进度（可选）
-            if (receivedLength % (1024 * 1024) === 0) { // 每1MB打印一次
-                console.log(`已加载 ${Math.round(receivedLength / 1024 / 1024)}MB 数据...`);
-            }
+            throw new Error(`无法加载paperDetails.json文件`);
         }
         
-        // 解析JSON数据
+        // 直接读取文本而不是JSON，避免大文件解析问题
+        const text = await response.text();
+        console.log('文件大小:', text.length, '字符');
+        
+        // 检查文件内容
+        if (!text || text.trim().length === 0) {
+            console.error('paperDetails.json文件内容为空');
+            throw new Error('JSON文件为空');
+        }
+        
+        // 尝试解析JSON
         let jsonData;
         try {
-            jsonData = JSON.parse(chunks);
+            jsonData = JSON.parse(text);
+            console.log('JSON解析成功，数据类型:', typeof jsonData);
         } catch (parseError) {
-            console.error('JSON解析失败:', parseError);
-            throw new Error('JSON文件格式错误或文件太大无法解析');
+            console.error('JSON解析失败:', parseError.message);
+            console.error('文件前1000字符:', text.substring(0, 1000));
+            throw new Error('JSON文件格式错误');
         }
-        
-        console.log('从paperDetails.json加载的数据结构类型:', typeof jsonData);
         
         // 检查数据格式
         if (jsonData && typeof jsonData === 'object') {
             // 格式1: { "1": {...}, "2": {...} } 或 { 1: {...}, 2: {...} }
-            // 尝试用数字ID和字符串ID两种方式查找
             if (jsonData[currentPaperId] || jsonData[String(currentPaperId)]) {
                 paperDetails = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
-                console.log(`从对象格式找到论文${currentPaperId}的详情:`, paperDetails);
+                console.log(`从对象格式找到论文${currentPaperId}的详情`);
             }
             // 格式2: [{paperId: 1, ...}, {paperId: 2, ...}]
             else if (Array.isArray(jsonData)) {
@@ -376,10 +384,10 @@ if (!paperDetails) {
                 
                 if (item) {
                     paperDetails = item;
-                    console.log(`从数组格式找到论文${currentPaperId}的详情:`, paperDetails);
+                    console.log(`从数组格式找到论文${currentPaperId}的详情`);
                 }
             } else {
-                console.log('paperDetails.json 文件包含数据，但格式不支持:', Object.keys(jsonData).slice(0, 5), '...');
+                console.log('paperDetails.json格式不支持，keys:', Object.keys(jsonData).slice(0, 5), '...');
             }
         }
         
@@ -393,17 +401,47 @@ if (!paperDetails) {
             
             await IndexedDBManager.savePaperDetails(currentPaperId, paperDetails);
         } else {
-            console.warn(`在paperDetails.json中未找到论文${currentPaperId}的详情`);
+            console.warn(`在paperDetails.json中未找到论文${currentPaperId}的详情，使用默认数据`);
         }
     } catch (error) {
-        console.log('从paperDetails.json加载失败:', error);
+        console.error('从paperDetails.json加载失败:', error.message || error);
         
-        // 尝试使用Web Worker异步解析大文件
-        if (error.message.includes('太大') || error.message.includes('格式错误')) {
-            console.log('尝试使用备选方案加载数据...');
-            await tryAlternativeLoading();
+        // 检查是否是Git LFS指针文件
+        try {
+            // 尝试读取少量数据检查是否是LFS指针文件
+            const smallResponse = await fetch('paperDetails.json', {
+                headers: { 'Range': 'bytes=0-1000' }
+            });
+            
+            if (smallResponse.ok) {
+                const smallText = await smallResponse.text();
+                if (smallText.includes('version https://git-lfs.github.com') || 
+                    smallText.includes('oid sha256:')) {
+                    console.error('检测到paperDetails.json是Git LFS指针文件，不是实际数据文件');
+                    showNotification('paperDetails.json是Git LFS指针文件，请上传实际JSON文件', 'error');
+                }
+            }
+        } catch (lfsError) {
+            console.error('检查LFS指针失败:', lfsError);
         }
     }
+}
+    // 确保数据结构完整
+const completePaperDetails = {
+    backgroundContent: paperDetails?.backgroundContent || '请添加研究背景信息',
+    mainContent: paperDetails?.mainContent || '请添加研究内容信息',
+    conclusionContent: paperDetails?.conclusionContent || '请添加研究结论信息',
+    linkContent: paperDetails?.linkContent || '暂无全文链接',
+    homepageImages: paperDetails?.homepageImages || [],
+    keyImages: paperDetails?.keyImages || []
+};
+
+console.log(`最终渲染的论文详情:`, completePaperDetails);
+renderPaperDetails(completePaperDetails);
+
+// 如果没有加载到任何内容，显示提示
+if (!paperDetails || !paperDetails.backgroundContent || !paperDetails.mainContent) {
+    showNotification('无法加载论文详情数据，请检查paperDetails.json文件', 'warning');
 }
 
     // 备选方案：尝试分块加载或使用Web Worker
@@ -1204,6 +1242,7 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
 
 
