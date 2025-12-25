@@ -1,3 +1,4 @@
+// main.js - 修复版（完整）
 // 全局变量
 let isLoggedIn = false;
 let currentEditData = null;
@@ -107,8 +108,8 @@ async function getAllPaperDetailsFromIndexedDB() {
                 const allPaperDetails = {};
                 event.target.result.forEach(item => {
                     if (item && item.paperId) {
-                        // 确保数据结构完整
                         allPaperDetails[item.paperId] = {
+                            paperId: item.paperId,
                             backgroundContent: item.backgroundContent || '暂无研究背景信息',
                             mainContent: item.mainContent || '暂无研究内容信息',
                             conclusionContent: item.conclusionContent || '暂无研究结论信息',
@@ -116,13 +117,9 @@ async function getAllPaperDetailsFromIndexedDB() {
                             homepageImages: item.homepageImages || [],
                             keyImages: item.keyImages || []
                         };
-                        console.log(`从IndexedDB获取论文${item.paperId}的图片数据:`, {
-                            homepageImages: item.homepageImages ? item.homepageImages.length : 0,
-                            keyImages: item.keyImages ? item.keyImages.length : 0
-                        });
                     }
                 });
-                console.log('IndexedDB数据获取完成:', Object.keys(allPaperDetails).length, '篇论文');
+                console.log('从IndexedDB获取到的论文详情数据:', allPaperDetails);
                 resolve(allPaperDetails);
             };
             
@@ -137,28 +134,26 @@ async function getAllPaperDetailsFromIndexedDB() {
     });
 }
 
-// 从localStorage获取论文详情数据（兼容旧版本）
+// 从localStorage获取论文详情数据
 function getPaperDetailsFromLocalStorage() {
     try {
         const paperDetails = DataManager.load('paperDetails', {});
-        console.log('从localStorage获取到论文详情数据:', Object.keys(paperDetails).length, '篇');
+        console.log('从localStorage获取到的论文详情数据:', paperDetails);
         
-        // 确保每个论文详情都有完整的结构
         const completePaperDetails = {};
         for (const paperId in paperDetails) {
             const detail = paperDetails[paperId];
-            completePaperDetails[paperId] = {
-                backgroundContent: detail.backgroundContent || '暂无研究背景信息',
-                mainContent: detail.mainContent || '暂无研究内容信息',
-                conclusionContent: detail.conclusionContent || '暂无研究结论信息',
-                linkContent: detail.linkContent || '暂无全文链接',
-                homepageImages: detail.homepageImages || [],
-                keyImages: detail.keyImages || []
-            };
-            console.log(`从localStorage获取论文${paperId}的图片数据:`, {
-                homepageImages: detail.homepageImages ? detail.homepageImages.length : 0,
-                keyImages: detail.keyImages ? detail.keyImages.length : 0
-            });
+            if (detail) {
+                completePaperDetails[paperId] = {
+                    paperId: parseInt(paperId),
+                    backgroundContent: detail.backgroundContent || '暂无研究背景信息',
+                    mainContent: detail.mainContent || '暂无研究内容信息',
+                    conclusionContent: detail.conclusionContent || '暂无研究结论信息',
+                    linkContent: detail.linkContent || '暂无全文链接',
+                    homepageImages: detail.homepageImages || [],
+                    keyImages: detail.keyImages || []
+                };
+            }
         }
         
         return completePaperDetails;
@@ -168,9 +163,32 @@ function getPaperDetailsFromLocalStorage() {
     }
 }
 
-// 获取所有论文详情数据（优先从IndexedDB，如果没有则从localStorage）
+// 获取所有论文ID（从主页数据）
+function getAllPaperIds() {
+    try {
+        const projectData = DataManager.load('projectData', defaultData);
+        if (projectData && projectData.papers && Array.isArray(projectData.papers)) {
+            return projectData.papers.map(paper => paper.id).filter(id => id);
+        }
+        return [];
+    } catch (error) {
+        console.error('获取论文ID失败:', error);
+        return [];
+    }
+}
+
+// 为所有论文获取详情数据（修复版）
 async function getAllPaperDetails() {
     console.log('开始获取所有论文详情数据...');
+    
+    // 获取所有论文ID
+    const paperIds = getAllPaperIds();
+    console.log('所有论文ID:', paperIds);
+    
+    if (paperIds.length === 0) {
+        console.log('没有找到论文ID，请先在主页添加论文');
+        return {};
+    }
     
     // 尝试从IndexedDB获取
     let indexedDBData = {};
@@ -187,22 +205,23 @@ async function getAllPaperDetails() {
     // 合并数据：优先使用IndexedDB的数据，然后补充localStorage的数据
     const mergedData = { ...localStorageData, ...indexedDBData };
     
-    console.log('合并后的数据:', Object.keys(mergedData).length, '篇论文');
+    // 确保所有论文ID都有数据（如果没有，创建默认数据）
+    paperIds.forEach(paperId => {
+        if (!mergedData[paperId]) {
+            mergedData[paperId] = {
+                paperId: paperId,
+                backgroundContent: '请添加研究背景信息',
+                mainContent: '请添加研究内容信息',
+                conclusionContent: '请添加研究结论信息',
+                linkContent: '暂无全文链接',
+                homepageImages: [],
+                keyImages: []
+            };
+            console.log(`为论文ID ${paperId} 创建默认数据`);
+        }
+    });
     
-    // 如果没有数据，返回空对象而不是null
-    if (Object.keys(mergedData).length === 0) {
-        console.log('警告：没有找到任何论文详情数据');
-        return {};
-    }
-    
-    // 打印每篇论文的图片数据信息
-    for (const paperId in mergedData) {
-        const detail = mergedData[paperId];
-        console.log(`论文 ${paperId} 图片数据:`, {
-            homepageImages: detail.homepageImages ? detail.homepageImages.length : 0,
-            keyImages: detail.keyImages ? detail.keyImages.length : 0
-        });
-    }
+    console.log('合并后的论文详情数据:', mergedData);
     
     return mergedData;
 }
@@ -225,12 +244,12 @@ function exportMainData() {
     showNotification('首页数据已导出为 data.json', 'success');
 }
 
-// 导出论文详情数据为JSON文件
+// 导出论文详情数据为JSON文件 - 完整修复版
 async function exportPaperDetailsData() {
     try {
-        showNotification('正在获取论文详情数据...', 'info');
+        showNotification('正在获取所有论文详情数据...', 'info');
         
-        // 获取所有论文详情数据
+        // 获取所有论文详情数据（包含所有论文ID）
         const paperDetails = await getAllPaperDetails();
         
         console.log('准备导出的论文详情数据:', paperDetails);
@@ -240,16 +259,45 @@ async function exportPaperDetailsData() {
             return;
         }
         
-        // 检查是否有图片数据
+        // 转换为paper-detail.js期望的格式
+        const exportData = {};
+        let totalPapers = 0;
         let totalImages = 0;
+        
         for (const paperId in paperDetails) {
             const detail = paperDetails[paperId];
-            totalImages += (detail.homepageImages ? detail.homepageImages.length : 0);
-            totalImages += (detail.keyImages ? detail.keyImages.length : 0);
+            if (detail && detail.paperId) {
+                totalPapers++;
+                
+                // 构建导出数据格式（与paper-detail.js期望的格式一致）
+                exportData[paperId] = {
+                    backgroundContent: detail.backgroundContent || '请添加研究背景信息',
+                    mainContent: detail.mainContent || '请添加研究内容信息',
+                    conclusionContent: detail.conclusionContent || '请添加研究结论信息',
+                    linkContent: detail.linkContent || '暂无全文链接',
+                    homepageImages: detail.homepageImages || [],
+                    keyImages: detail.keyImages || []
+                };
+                
+                // 统计图片数量
+                totalImages += (detail.homepageImages ? detail.homepageImages.length : 0);
+                totalImages += (detail.keyImages ? detail.keyImages.length : 0);
+                
+                console.log(`论文 ${paperId} 导出数据:`, {
+                    背景字数: detail.backgroundContent ? detail.backgroundContent.length : 0,
+                    内容字数: detail.mainContent ? detail.mainContent.length : 0,
+                    结论字数: detail.conclusionContent ? detail.conclusionContent.length : 0,
+                    链接: detail.linkContent || '无',
+                    首页图片数: detail.homepageImages ? detail.homepageImages.length : 0,
+                    关键图片数: detail.keyImages ? detail.keyImages.length : 0
+                });
+            }
         }
-        console.log(`总共发现 ${totalImages} 张图片`);
         
-        const jsonStr = JSON.stringify(paperDetails, null, 2);
+        console.log(`导出统计: ${totalPapers} 篇论文, ${totalImages} 张图片`);
+        
+        // 导出JSON文件
+        const jsonStr = JSON.stringify(exportData, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         
@@ -261,7 +309,8 @@ async function exportPaperDetailsData() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        showNotification(`论文详情数据已导出，包含 ${Object.keys(paperDetails).length} 篇论文的数据和 ${totalImages} 张图片`, 'success');
+        showNotification(`成功导出 ${totalPapers} 篇论文的详情数据和 ${totalImages} 张图片`, 'success');
+        
     } catch (error) {
         console.error('导出论文详情数据失败:', error);
         showNotification('导出失败: ' + error.message, 'error');
@@ -729,7 +778,7 @@ function toggleSection(button, sectionId) {
             opacity: [1, 0],
             translateY: [0, -10],
             duration: 300,
-            easing: 'easeInQuad',
+            easing: 'aseInQuad',
             complete: () => {
                 content.classList.remove('show');
                 button.textContent = '展开查看';
