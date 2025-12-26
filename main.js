@@ -245,7 +245,7 @@ function exportMainData() {
     showNotification('首页数据已导出为 data.json', 'success');
 }
 
-// 导出论文详情数据为JSON文件 - 修复版，确保格式正确
+// 导出论文详情数据为JSON文件 - 修复版，每5个论文存储为一个文件
 async function exportPaperDetailsData() {
     try {
         showNotification('正在获取论文详情数据...', 'info');
@@ -260,59 +260,120 @@ async function exportPaperDetailsData() {
             return;
         }
         
-        // 转换为paper-detail.js期望的格式
-        const exportData = {};
+        // 将论文ID转换为数组并排序
+        const paperIds = Object.keys(paperDetails)
+            .map(id => parseInt(id))
+            .filter(id => !isNaN(id))
+            .sort((a, b) => a - b);
+        
+        console.log('排序后的论文ID:', paperIds);
+        
+        // 每5个论文一组进行分组
+        const groups = [];
+        for (let i = 0; i < paperIds.length; i += 5) {
+            groups.push(paperIds.slice(i, i + 5));
+        }
+        
+        console.log('分组结果:', groups);
+        
+        // 创建索引文件，记录每个文件的论文范围
+        const indexData = {};
         let totalPapers = 0;
         let totalImages = 0;
         
-        for (const paperId in paperDetails) {
-            const detail = paperDetails[paperId];
-            if (detail) {
-                totalPapers++;
-                
-                // 构建导出数据格式 - 与paper-detail.js完全匹配
-                // 关键修复：确保paperId作为字符串键存储
-                exportData[String(paperId)] = {
-                    backgroundContent: detail.backgroundContent || '暂无研究背景信息',
-                    mainContent: detail.mainContent || '暂无研究内容信息',
-                    conclusionContent: detail.conclusionContent || '暂无研究结论信息',
-                    linkContent: detail.linkContent || '暂无全文链接',
-                    homepageImages: detail.homepageImages || [],
-                    keyImages: detail.keyImages || []
-                };
-                
-                // 统计图片数量
-                totalImages += (detail.homepageImages ? detail.homepageImages.length : 0);
-                totalImages += (detail.keyImages ? detail.keyImages.length : 0);
-                
-                console.log(`论文 ${paperId} 导出数据详情:`, {
-                    背景字数: exportData[String(paperId)].backgroundContent.length,
-                    内容字数: exportData[String(paperId)].mainContent.length,
-                    结论字数: exportData[String(paperId)].conclusionContent.length,
-                    首页图片数: exportData[String(paperId)].homepageImages.length,
-                    关键图片数: exportData[String(paperId)].keyImages.length
-                });
-            }
+        // 为每个分组创建JSON文件
+        for (let i = 0; i < groups.length; i++) {
+            const group = groups[i];
+            const fileNum = String(i + 1).padStart(2, '0'); // 01, 02, 03...
+            const fileName = `paperDetails${fileNum}.json`;
+            
+            // 构建该分组的论文数据
+            const groupData = {};
+            let groupPaperCount = 0;
+            let groupImageCount = 0;
+            
+            group.forEach(paperId => {
+                const detail = paperDetails[paperId];
+                if (detail) {
+                    groupPaperCount++;
+                    
+                    // 确保从两个存储位置获取完整数据
+                    const completeDetail = {
+                        paperId: paperId,
+                        backgroundContent: detail.backgroundContent || '暂无研究背景信息',
+                        mainContent: detail.mainContent || '暂无研究内容信息',
+                        conclusionContent: detail.conclusionContent || '暂无研究结论信息',
+                        linkContent: detail.linkContent || '暂无全文链接',
+                        homepageImages: detail.homepageImages || [],
+                        keyImages: detail.keyImages || []
+                    };
+                    
+                    // 添加到分组数据中 - 使用字符串键以兼容paper-detail.js
+                    groupData[String(paperId)] = {
+                        backgroundContent: completeDetail.backgroundContent,
+                        mainContent: completeDetail.mainContent,
+                        conclusionContent: completeDetail.conclusionContent,
+                        linkContent: completeDetail.linkContent,
+                        homepageImages: completeDetail.homepageImages,
+                        keyImages: completeDetail.keyImages
+                    };
+                    
+                    // 统计图片数量
+                    groupImageCount += (completeDetail.homepageImages ? completeDetail.homepageImages.length : 0);
+                    groupImageCount += (completeDetail.keyImages ? completeDetail.keyImages.length : 0);
+                    
+                    console.log(`论文 ${paperId} 数据详情:`, {
+                        背景字数: completeDetail.backgroundContent.length,
+                        内容字数: completeDetail.mainContent.length,
+                        结论字数: completeDetail.conclusionContent.length,
+                        首页图片数: completeDetail.homepageImages.length,
+                        关键图片数: completeDetail.keyImages.length
+                    });
+                }
+            });
+            
+            // 记录到索引中
+            const minId = Math.min(...group);
+            const maxId = Math.max(...group);
+            indexData[fileName] = {
+                range: [minId, maxId],
+                paperIds: group,
+                count: groupPaperCount
+            };
+            
+            // 导出该分组文件
+            const jsonStr = JSON.stringify(groupData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            totalPapers += groupPaperCount;
+            totalImages += groupImageCount;
+            
+            console.log(`导出分组 ${fileNum}: ${fileName}，包含论文 ${groupPaperCount} 篇，图片 ${groupImageCount} 张`);
         }
         
-        console.log(`导出统计: ${totalPapers} 篇论文, ${totalImages} 张图片`);
+        // 导出索引文件
+        const indexStr = JSON.stringify(indexData, null, 2);
+        const indexBlob = new Blob([indexStr], { type: 'application/json' });
+        const indexUrl = URL.createObjectURL(indexBlob);
         
-        // 导出JSON文件
-        const jsonStr = JSON.stringify(exportData, null, 2);
-        console.log('导出的JSON数据格式:', jsonStr.substring(0, 500) + '...');
+        const indexA = document.createElement('a');
+        indexA.href = indexUrl;
+        indexA.download = 'paperIndex.json';
+        document.body.appendChild(indexA);
+        indexA.click();
+        document.body.removeChild(indexA);
+        URL.revokeObjectURL(indexUrl);
         
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'paperDetails.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        showNotification(`成功导出 ${totalPapers} 篇论文的详情数据和 ${totalImages} 张图片`, 'success');
+        showNotification(`成功导出 ${groups.length} 个文件，共 ${totalPapers} 篇论文的详情数据和 ${totalImages} 张图片`, 'success');
         
     } catch (error) {
         console.error('导出论文详情数据失败:', error);
@@ -1521,3 +1582,4 @@ window.editStudent = editStudent;
 window.deleteStudent = deleteStudent;
 window.editConference = editConference;
 window.deleteConference = deleteConference;
+
