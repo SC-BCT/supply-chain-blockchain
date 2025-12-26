@@ -313,182 +313,53 @@ async function loadPaperDetails() {
         }
     }
 
-    // 3. 从paperDetails.json加载 - 简化版修复
-if (!paperDetails) {
-    try {
-        console.log('尝试从paperDetails.json加载数据...');
-        
-        // 添加重试机制和超时设置
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
-        
-        const response = await fetch('paperDetails.json', {
-            signal: controller.signal,
-            headers: {
-                'Accept': 'application/json',
-                'Cache-Control': 'no-cache'
-            }
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-            console.error(`HTTP ${response.status}: ${response.statusText}`);
-            
-            // 尝试检查文件是否存在
-            try {
-                const headResponse = await fetch('paperDetails.json', { method: 'HEAD' });
-                console.log('HEAD请求结果:', headResponse.status, headResponse.statusText);
-            } catch (headError) {
-                console.error('文件HEAD请求失败:', headError);
-            }
-            
-            throw new Error(`无法加载paperDetails.json文件`);
-        }
-        
-        // 直接读取文本而不是JSON，避免大文件解析问题
-        const text = await response.text();
-        console.log('文件大小:', text.length, '字符');
-        
-        // 检查文件内容
-        if (!text || text.trim().length === 0) {
-            console.error('paperDetails.json文件内容为空');
-            throw new Error('JSON文件为空');
-        }
-        
-        // 尝试解析JSON
-        let jsonData;
+    // 3. 从paperDetails.json加载
+    if (!paperDetails) {
         try {
-            jsonData = JSON.parse(text);
-            console.log('JSON解析成功，数据类型:', typeof jsonData);
-        } catch (parseError) {
-            console.error('JSON解析失败:', parseError.message);
-            console.error('文件前1000字符:', text.substring(0, 1000));
-            throw new Error('JSON文件格式错误');
-        }
-        
-        // 检查数据格式
-        if (jsonData && typeof jsonData === 'object') {
-            // 格式1: { "1": {...}, "2": {...} } 或 { 1: {...}, 2: {...} }
-            if (jsonData[currentPaperId] || jsonData[String(currentPaperId)]) {
-                paperDetails = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
-                console.log(`从对象格式找到论文${currentPaperId}的详情`);
-            }
-            // 格式2: [{paperId: 1, ...}, {paperId: 2, ...}]
-            else if (Array.isArray(jsonData)) {
-                console.log('数据是数组格式，搜索论文ID:', currentPaperId);
-                const item = jsonData.find(item => {
-                    const id = item.paperId || item.id;
-                    return id && (parseInt(id) === currentPaperId || String(id) === String(currentPaperId));
-                });
+            console.log('尝试从paperDetails.json加载数据...');
+            const response = await fetch('paperDetails.json');
+            if (response.ok) {
+                const jsonData = await response.json();
+                console.log('从paperDetails.json加载的数据:', jsonData);
                 
-                if (item) {
-                    paperDetails = item;
-                    console.log(`从数组格式找到论文${currentPaperId}的详情`);
+                // 检查数据格式
+                if (jsonData && typeof jsonData === 'object') {
+                    // 格式1: { "1": {...}, "2": {...} } 或 { 1: {...}, 2: {...} }
+                    // 尝试用数字ID和字符串ID两种方式查找
+                    if (jsonData[currentPaperId] || jsonData[String(currentPaperId)]) {
+                        paperDetails = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
+                        console.log(`从对象格式找到论文${currentPaperId}的详情:`, paperDetails);
+                    }
+                    // 格式2: [{paperId: 1, ...}, {paperId: 2, ...}]
+                    else if (Array.isArray(jsonData)) {
+                        console.log('数据是数组格式，搜索论文ID:', currentPaperId);
+                        const item = jsonData.find(item => {
+                            const id = item.paperId || item.id;
+                            return id && (parseInt(id) === currentPaperId || String(id) === String(currentPaperId));
+                        });
+                        
+                        if (item) {
+                            paperDetails = item;
+                            console.log(`从数组格式找到论文${currentPaperId}的详情:`, paperDetails);
+                        }
+                    }
                 }
-            } else {
-                console.log('paperDetails.json格式不支持，keys:', Object.keys(jsonData).slice(0, 5), '...');
-            }
-        }
-        
-        if (paperDetails) {
-            console.log(`从paperDetails.json成功找到论文${currentPaperId}的详情`);
-            
-            // 保存到localStorage和IndexedDB
-            const localPaperDetails = DataManager.load('paperDetails', {});
-            localPaperDetails[currentPaperId] = paperDetails;
-            DataManager.save('paperDetails', localPaperDetails);
-            
-            await IndexedDBManager.savePaperDetails(currentPaperId, paperDetails);
-        } else {
-            console.warn(`在paperDetails.json中未找到论文${currentPaperId}的详情，使用默认数据`);
-        }
-    } catch (error) {
-        console.error('从paperDetails.json加载失败:', error.message || error);
-        
-        // 检查是否是Git LFS指针文件
-        try {
-            // 尝试读取少量数据检查是否是LFS指针文件
-            const smallResponse = await fetch('paperDetails.json', {
-                headers: { 'Range': 'bytes=0-1000' }
-            });
-            
-            if (smallResponse.ok) {
-                const smallText = await smallResponse.text();
-                if (smallText.includes('version https://git-lfs.github.com') || 
-                    smallText.includes('oid sha256:')) {
-                    console.error('检测到paperDetails.json是Git LFS指针文件，不是实际数据文件');
-                    showNotification('paperDetails.json是Git LFS指针文件，请上传实际JSON文件', 'error');
+                
+                if (paperDetails) {
+                    console.log(`从paperDetails.json成功找到论文${currentPaperId}的详情`);
+                    
+                    // 保存到localStorage和IndexedDB
+                    const localPaperDetails = DataManager.load('paperDetails', {});
+                    localPaperDetails[currentPaperId] = paperDetails;
+                    DataManager.save('paperDetails', localPaperDetails);
+                    
+                    await IndexedDBManager.savePaperDetails(currentPaperId, paperDetails);
                 }
             }
-        } catch (lfsError) {
-            console.error('检查LFS指针失败:', lfsError);
+        } catch (error) {
+            console.log('从paperDetails.json加载失败:', error);
         }
     }
-}
-    // 确保数据结构完整
-const completePaperDetails = {
-    backgroundContent: paperDetails?.backgroundContent || '请添加研究背景信息',
-    mainContent: paperDetails?.mainContent || '请添加研究内容信息',
-    conclusionContent: paperDetails?.conclusionContent || '请添加研究结论信息',
-    linkContent: paperDetails?.linkContent || '暂无全文链接',
-    homepageImages: paperDetails?.homepageImages || [],
-    keyImages: paperDetails?.keyImages || []
-};
-
-console.log(`最终渲染的论文详情:`, completePaperDetails);
-renderPaperDetails(completePaperDetails);
-
-// 如果没有加载到任何内容，显示提示
-if (!paperDetails || !paperDetails.backgroundContent || !paperDetails.mainContent) {
-    showNotification('无法加载论文详情数据，请检查paperDetails.json文件', 'warning');
-}
-
-    // 备选方案：尝试分块加载或使用Web Worker
-async function tryAlternativeLoading() {
-    console.log('使用备选方案加载数据...');
-    
-    try {
-        // 尝试使用XMLHttpRequest，它有更好的进度控制和超时处理
-        const xhr = new XMLHttpRequest();
-        
-        return new Promise((resolve, reject) => {
-            xhr.timeout = 30000; // 30秒超时
-            xhr.responseType = 'json';
-            
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    console.log('通过XMLHttpRequest成功加载JSON数据');
-                    // 这里需要根据你的数据格式处理
-                    // 这部分逻辑与上面类似，可以封装为一个函数
-                } else {
-                    reject(new Error(`HTTP ${xhr.status}`));
-                }
-            };
-            
-            xhr.onerror = function() {
-                reject(new Error('网络错误'));
-            };
-            
-            xhr.ontimeout = function() {
-                reject(new Error('请求超时'));
-            };
-            
-            xhr.onprogress = function(event) {
-                if (event.lengthComputable) {
-                    const percentComplete = (event.loaded / event.total) * 100;
-                    console.log(`加载进度: ${percentComplete.toFixed(2)}%`);
-                }
-            };
-            
-            xhr.open('GET', 'paperDetails.json');
-            xhr.send();
-        });
-    } catch (error) {
-        console.error('备选方案也失败了:', error);
-        return null;
-    }
-}
     
     // 4. 创建默认数据
     if (!paperDetails) {
@@ -1242,6 +1113,7 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
 
 
