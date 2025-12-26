@@ -161,7 +161,7 @@
             background-color: rgba(249, 115, 22, 0.1);
         }
         
-                /* 导出区域样式 */
+        /* 导出区域样式 */
         .export-section {
             background: linear-gradient(135deg, #7c3aed, #8b5cf6);
             border-radius: 20px;
@@ -171,31 +171,9 @@
             transform: translateY(-5px);
             box-shadow: 0 20px 40px rgba(124, 58, 237, 0.3);
         }
-
-        /* 加载指示器动画 */
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .animate-spin {
-          animation: spin 1s linear infinite;
-        }
-
-        #loadingIndicator {
-          transition: opacity 0.3s ease-out;
-        }
     </style>
 </head>
 <body class="min-h-screen">
-    
-    <!-- 加载指示器 -->
-<div id="loadingIndicator" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-  <div class="text-white text-center">
-    <div class="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-    <p>加载中...</p>
-  </div>
-</div>
-    
     <!-- 背景控制按钮 -->
     <div class="bg-controls edit-btn hidden">
         <button id="changeBgBtn" class="btn-primary text-white px-4 py-2 rounded-lg shadow-lg mb-2 block">
@@ -463,5 +441,3 @@
     <script src="main.js"></script>
 </body>
 </html>
-
-
