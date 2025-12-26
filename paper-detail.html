@@ -182,38 +182,6 @@
         .image-loading.show {
             display: block;
         }
-                /* 加载状态样式 */
-        body.loading .glass-effect {
-            opacity: 0.7;
-        }
-
-        body.loading::after {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.8);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        body.loading::before {
-            content: '加载中...';
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10000;
-            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: bold;
-        }
 
         /* 图片懒加载样式 */
         .lazy-image {
@@ -224,40 +192,8 @@
         .lazy-image.loaded {
             opacity: 1;
         }
-                /* 加载状态样式 */
-        body.loading .glass-effect {
-            opacity: 0.7;
-        }
 
-        body.loading::after {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.8);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        body.loading::before {
-            content: '加载中...';
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10000;
-            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: bold;
-        }
-
-        /* 图片懒加载样式 */
+                /* 图片懒加载样式 */
         .lazy-image {
             opacity: 0;
             transition: opacity 0.3s ease;
@@ -265,10 +201,31 @@
 
         .lazy-image.loaded {
             opacity: 1;
+        }
+        
+        /* 加载指示器动画 */
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+
+        #loadingIndicator {
+          transition: opacity 0.3s ease-out;
         }
     </style>
 </head>
 <body class="min-h-screen">
+    <!-- 加载指示器 -->
+    <div id="loadingIndicator" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
+      <div class="text-white text-center">
+        <div class="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p>加载中...</p>
+      </div>
+    </div>
+    
     <!-- 顶部导航 -->
     <nav class="glass-effect shadow-lg sticky top-0 z-50">
         <div class="container mx-auto px-6 py-4">
