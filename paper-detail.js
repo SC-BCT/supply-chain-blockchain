@@ -313,7 +313,7 @@ async function loadPaperDetails() {
         }
     }
 
- // 3. 从单个论文的JSON文件加载（paperDetails01.json, paperDetails02.json...）
+// 3. 从单个论文的JSON文件加载（paperDetails01.json, paperDetails02.json...）
 if (!paperDetails) {
     try {
         // 将论文ID格式化为两位数（01, 02, 03...）
@@ -322,6 +322,7 @@ if (!paperDetails) {
         
         console.log(`尝试从单个文件 ${fileName} 加载数据...`);
         const response = await fetch(fileName);
+        
         if (response.ok) {
             const singlePaperData = await response.json();
             console.log(`从 ${fileName} 加载的数据:`, singlePaperData);
@@ -344,6 +345,7 @@ if (!paperDetails) {
             DataManager.save('paperDetails', localPaperDetails);
             
             await IndexedDBManager.savePaperDetails(currentPaperId, paperDetails);
+            
         } else {
             console.log(`单个文件 ${fileName} 不存在，尝试旧版 paperDetails.json 文件...`);
             
@@ -1147,4 +1149,5 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
