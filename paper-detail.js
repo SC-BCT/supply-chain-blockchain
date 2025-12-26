@@ -739,28 +739,11 @@ else {
 
 // 从JSON文件加载数据
 async function loadFromJSONFile() {
-
-    // 设置请求超时（5秒）
-const controller = new AbortController();
-const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-try {
-    // ... 原有的fetch请求改为：
-    // const response = await fetch(fileName, { signal: controller.signal });
-    // 或者
-    // const indexResponse = await fetch('paperIndex.json', { signal: controller.signal });
-} catch (error) {
-    if (error.name === 'AbortError') {
-        console.log(`请求超时: ${fileName}`);
-        return null;
-    }
-    throw error;
-} finally {
-    clearTimeout(timeoutId);
-}
-    
     try {
         console.log('尝试从单个论文JSON文件加载数据...');
+        
+        // 设置请求超时（3秒）
+        const timeout = 3000; // 3秒超时
         
         // 方法1：使用预缓存的索引（性能最优）
         let targetFileName = null;
@@ -776,41 +759,55 @@ try {
                 fileIndexData = JSON.parse(cachedIndex);
                 console.log('从sessionStorage加载索引缓存');
             } else {
-                // 从网络加载并缓存
-                const indexResponse = await fetch('paperIndex.json');
-                if (indexResponse.ok) {
-                    fileIndexData = await indexResponse.json();
-                    // 缓存到sessionStorage
-                    sessionStorage.setItem('paperIndexCache', JSON.stringify(fileIndexData));
-                    sessionStorage.setItem('paperIndexCacheTime', Date.now().toString());
-                    console.log('从网络加载索引并缓存到sessionStorage');
+                // 从网络加载并缓存，添加超时机制
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+                
+                try {
+                    const indexResponse = await fetch('paperIndex.json', { 
+                        signal: controller.signal 
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (indexResponse.ok) {
+                        fileIndexData = await indexResponse.json();
+                        // 缓存到sessionStorage
+                        sessionStorage.setItem('paperIndexCache', JSON.stringify(fileIndexData));
+                        sessionStorage.setItem('paperIndexCacheTime', Date.now().toString());
+                        console.log('从网络加载索引并缓存到sessionStorage');
+                    }
+                } catch (indexError) {
+                    clearTimeout(timeoutId);
+                    if (indexError.name === 'AbortError') {
+                        console.log('索引文件请求超时');
+                    } else {
+                        throw indexError;
+                    }
                 }
             }
         } catch (indexError) {
             console.log('索引文件处理失败，尝试直接按顺序查找:', indexError);
         }
         
-        // 使用索引快速定位文件
-        if (fileIndexData) {
-            for (const [fileName, fileInfo] of Object.entries(fileIndexData)) {
-                // 查找包含当前论文ID的文件
-                if (fileInfo.paperId === currentPaperId) {
-                    targetFileName = fileName;
-                    console.log(`使用索引找到: 论文ID ${currentPaperId} 对应文件 ${fileName}`);
-                    break;
-                }
-            }
-        }
-        
         // 方法2：如果索引不可用，尝试直接按顺序查找
         if (!targetFileName) {
             console.log('索引不可用，尝试顺序查找论文文件...');
-            // 从01开始尝试，最多尝试50个文件
-            for (let i = 1; i <= 50; i++) {
+            // 从01开始尝试，最多尝试10个文件（减少尝试次数）
+            for (let i = 1; i <= 10; i++) {
                 const fileName = `paperDetails${String(i).padStart(2, '0')}.json`;
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+                
                 try {
                     console.log(`尝试加载文件: ${fileName}`);
-                    const response = await fetch(fileName);
+                    const response = await fetch(fileName, { 
+                        signal: controller.signal 
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
                     if (response.ok) {
                         const jsonData = await response.json();
                         
@@ -823,6 +820,10 @@ try {
                         }
                     }
                 } catch (fileError) {
+                    clearTimeout(timeoutId);
+                    if (fileError.name !== 'AbortError') {
+                        console.log(`加载文件 ${fileName} 失败:`, fileError);
+                    }
                     // 继续尝试下一个文件
                     continue;
                 }
@@ -832,47 +833,27 @@ try {
         // 加载目标文件
         if (targetFileName) {
             console.log(`加载文件: ${targetFileName}`);
-            const response = await fetch(targetFileName);
-            if (response.ok) {
-                const jsonData = await response.json();
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+                const response = await fetch(targetFileName, { 
+                    signal: controller.signal 
+                });
                 
-                // 直接查找数据（使用数字键和字符串键两种方式）
-                const foundData = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
+                clearTimeout(timeoutId);
                 
-                if (foundData) {
-                    console.log(`从 ${targetFileName} 找到论文${currentPaperId}的详情`);
+                if (response.ok) {
+                    const jsonData = await response.json();
                     
-                    // 构建完整数据
-                    return {
-                        backgroundContent: foundData.backgroundContent || '请添加研究背景信息',
-                        mainContent: foundData.mainContent || '请添加研究内容信息',
-                        conclusionContent: foundData.conclusionContent || '请添加研究结论信息',
-                        linkContent: foundData.linkContent || '暂无全文链接',
-                        homepageImages: foundData.homepageImages || [],
-                        keyImages: foundData.keyImages || []
-                    };
-                }
-            }
-        }
-        
-        console.warn(`未找到论文 ${currentPaperId} 的对应文件`);
-        return null;
-        
-    } catch (error) {
-        console.log('从JSON文件加载失败:', error);
-        
-        // 作为后备方案，尝试加载旧的单个大文件
-        try {
-            console.log('尝试加载旧的 paperDetails.json 文件作为后备...');
-            const fallbackResponse = await fetch('paperDetails.json');
-            if (fallbackResponse.ok) {
-                const fallbackData = await fallbackResponse.json();
-                console.log('从旧文件加载的数据:', fallbackData);
-                
-                if (fallbackData && typeof fallbackData === 'object') {
-                    const foundData = fallbackData[currentPaperId] || fallbackData[String(currentPaperId)];
+                    // 直接查找数据（使用数字键和字符串键两种方式）
+                    const foundData = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
+                    
                     if (foundData) {
-                        console.log(`从旧文件找到论文${currentPaperId}的详情`);
+                        console.log(`从 ${targetFileName} 找到论文${currentPaperId}的详情`);
+                        
+                        // 构建完整数据
                         return {
                             backgroundContent: foundData.backgroundContent || '请添加研究背景信息',
                             mainContent: foundData.mainContent || '请添加研究内容信息',
@@ -883,9 +864,65 @@ try {
                         };
                     }
                 }
+            } catch (targetError) {
+                clearTimeout(timeoutId);
+                if (targetError.name === 'AbortError') {
+                    console.log(`目标文件 ${targetFileName} 请求超时`);
+                } else {
+                    console.log(`加载目标文件 ${targetFileName} 失败:`, targetError);
+                }
+            }
+        }
+        
+        console.warn(`未找到论文 ${currentPaperId} 的对应文件`);
+        return null;
+        
+    } catch (error) {
+        console.log('从JSON文件加载失败:', error);
+        
+        // 作为后备方案，尝试加载旧的单个大文件，同样添加超时
+        try {
+            console.log('尝试加载旧的 paperDetails.json 文件作为后备...');
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            
+            try {
+                const fallbackResponse = await fetch('paperDetails.json', { 
+                    signal: controller.signal 
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (fallbackResponse.ok) {
+                    const fallbackData = await fallbackResponse.json();
+                    console.log('从旧文件加载的数据:', fallbackData);
+                    
+                    if (fallbackData && typeof fallbackData === 'object') {
+                        const foundData = fallbackData[currentPaperId] || fallbackData[String(currentPaperId)];
+                        if (foundData) {
+                            console.log(`从旧文件找到论文${currentPaperId}的详情`);
+                            return {
+                                backgroundContent: foundData.backgroundContent || '请添加研究背景信息',
+                                mainContent: foundData.mainContent || '请添加研究内容信息',
+                                conclusionContent: foundData.conclusionContent || '请添加研究结论信息',
+                                linkContent: foundData.linkContent || '暂无全文链接',
+                                homepageImages: foundData.homepageImages || [],
+                                keyImages: foundData.keyImages || []
+                            };
+                        }
+                    }
+                }
+            } catch (fallbackError) {
+                clearTimeout(timeoutId);
+                if (fallbackError.name === 'AbortError') {
+                    console.log('后备文件请求超时');
+                } else {
+                    console.log('旧文件加载也失败:', fallbackError);
+                }
             }
         } catch (fallbackError) {
-            console.log('旧文件加载也失败:', fallbackError);
+            console.log('后备方案也失败:', fallbackError);
             return null;
         }
         
@@ -1463,6 +1500,7 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
 
 
