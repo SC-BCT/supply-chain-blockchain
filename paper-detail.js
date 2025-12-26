@@ -156,8 +156,8 @@ class IndexedDBManager {
 async function initializePage() {
     console.log('开始初始化论文详情页');
     
-// 先显示加载中的状态
-document.getElementById('loadingIndicator').style.display = 'flex';
+    // 先显示加载中的状态
+    document.getElementById('loadingIndicator').style.display = 'flex';
     
     // 初始化DOM元素引用
     initElements();
@@ -166,23 +166,40 @@ document.getElementById('loadingIndicator').style.display = 'flex';
     isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
     console.log('登录状态:', isLoggedIn);
     
-    // 获取URL参数中的论文ID
+    // 获取URL参数中的论文ID - 确保正确获取当前需要的论文ID
     const urlParams = new URLSearchParams(window.location.search);
-    currentPaperId = parseInt(urlParams.get('id')) || 1;
+    currentPaperId = parseInt(urlParams.get('id'));
+    
+    // 如果URL中没有ID或ID无效，不默认加载第一篇，而是显示错误信息
+    if (!currentPaperId || isNaN(currentPaperId)) {
+        console.error('无效的论文ID');
+        document.getElementById('loadingIndicator').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }, 300);
+        showNotification('无效的论文ID', 'error');
+        return;
+    }
+    
     console.log('当前论文ID:', currentPaperId);
     
     // 立即更新基本信息区域（快速显示）
     updateBasicInfoPlaceholder();
     
-    // 预加载索引文件（不等待）
-    preloadPaperIndex();
-    
     try {
-        // 并行加载：基本信息 + 详情数据
+        // 只加载当前论文的基本信息和详情数据
         const [basicInfoLoaded, detailsLoaded] = await Promise.allSettled([
-            loadPaperBasicInfo(),
-            loadPaperDetails()
+            loadPaperBasicInfo(currentPaperId),  // 传入当前论文ID
+            loadPaperDetails(currentPaperId)     // 传入当前论文ID
         ]);
+        
+        // 先更新文字内容，快速显示给用户
+        updateTextContent();
+        
+        // 延迟加载图片，不阻塞文字显示
+        setTimeout(() => {
+            loadPaperImages(currentPaperId);
+        }, 500);
         
         // 更新UI
         updateUI();
@@ -192,19 +209,19 @@ document.getElementById('loadingIndicator').style.display = 'flex';
             setTimeout(initDragAndDrop, 100);
         }
         
-// 显示完成状态
-document.getElementById('loadingIndicator').style.opacity = '0';
-setTimeout(() => {
-    document.getElementById('loadingIndicator').style.display = 'none';
-}, 300);
+        // 显示完成状态
+        document.getElementById('loadingIndicator').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }, 300);
         
     } catch (error) {
         console.error('初始化失败:', error);
-showNotification('页面加载遇到问题，但已显示可用内容', 'warning');
-document.getElementById('loadingIndicator').style.opacity = '0';
-setTimeout(() => {
-    document.getElementById('loadingIndicator').style.display = 'none';
-}, 300);
+        showNotification('页面加载遇到问题，但已显示可用内容', 'warning');
+        document.getElementById('loadingIndicator').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }, 300);
     }
     
     // 添加动画效果
@@ -1362,6 +1379,7 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
 
 
