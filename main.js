@@ -455,6 +455,11 @@ function getCurrentData() {
 // 渲染项目信息
 function renderProjectInfo(projectData) {
     const data = projectData || getCurrentData();
+        // 隐藏加载状态
+    const loadingMask = document.querySelector('.loading-mask');
+    if (loadingMask) {
+        loadingMask.remove();
+    }
     const container = document.getElementById('projectInfo');
     if (!container) return;
     
@@ -1547,6 +1552,7 @@ window.editStudent = editStudent;
 window.deleteStudent = deleteStudent;
 window.editConference = editConference;
 window.deleteConference = deleteConference;
+
 
 
 
