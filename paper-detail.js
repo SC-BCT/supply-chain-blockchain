@@ -28,6 +28,22 @@ function initElements() {
     };
 }
 
+// 页面加载时显示加载状态
+function showLoading() {
+    // 先移除可能存在的旧遮罩，避免重复添加
+    const oldMask = document.querySelector('.loading-mask');
+    if (oldMask) oldMask.remove();
+    
+    // 添加新的加载遮罩
+    const loadingMask = document.createElement('div');
+    loadingMask.className = 'loading-mask';
+    loadingMask.innerHTML = '<div class="loading-spinner"></div>';
+    document.body.appendChild(loadingMask);
+}
+
+// 页面打开时立即显示加载状态
+showLoading();
+
 // 数据管理类
 class DataManager {
     static save(key, data) {
@@ -1154,6 +1170,7 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
 
 
