@@ -227,25 +227,7 @@ async function getAllPaperDetails() {
     return finalData;
 }
 
-// 导出首页数据为JSON文件
-function exportMainData() {
-    const projectData = DataManager.load('projectData', defaultData);
-    const jsonStr = JSON.stringify(projectData, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'data.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showNotification('首页数据已导出为 data.json', 'success');
-}
-
-// 导出论文详情数据为JSON文件 - 修复版，确保格式正确
+// 导出论文详情数据为多个JSON文件 - 分开存储版本
 async function exportPaperDetailsData() {
     try {
         showNotification('正在获取论文详情数据...', 'info');
@@ -260,19 +242,18 @@ async function exportPaperDetailsData() {
             return;
         }
         
-        // 转换为paper-detail.js期望的格式
-        const exportData = {};
         let totalPapers = 0;
         let totalImages = 0;
+        let exportedFiles = [];
         
+        // 遍历每个论文，分别导出为单独的JSON文件
         for (const paperId in paperDetails) {
             const detail = paperDetails[paperId];
             if (detail) {
                 totalPapers++;
                 
-                // 构建导出数据格式 - 与paper-detail.js完全匹配
-                // 关键修复：确保paperId作为字符串键存储
-                exportData[String(paperId)] = {
+                // 构建单个论文的导出数据格式
+                const singlePaperData = {
                     backgroundContent: detail.backgroundContent || '暂无研究背景信息',
                     mainContent: detail.mainContent || '暂无研究内容信息',
                     conclusionContent: detail.conclusionContent || '暂无研究结论信息',
@@ -285,34 +266,61 @@ async function exportPaperDetailsData() {
                 totalImages += (detail.homepageImages ? detail.homepageImages.length : 0);
                 totalImages += (detail.keyImages ? detail.keyImages.length : 0);
                 
-                console.log(`论文 ${paperId} 导出数据详情:`, {
-                    背景字数: exportData[String(paperId)].backgroundContent.length,
-                    内容字数: exportData[String(paperId)].mainContent.length,
-                    结论字数: exportData[String(paperId)].conclusionContent.length,
-                    首页图片数: exportData[String(paperId)].homepageImages.length,
-                    关键图片数: exportData[String(paperId)].keyImages.length
+                // 将论文ID格式化为两位数（01, 02, 03...）
+                const formattedPaperId = String(paperId).padStart(2, '0');
+                const fileName = `paperDetails${formattedPaperId}.json`;
+                
+                // 导出单个论文的JSON文件
+                const jsonStr = JSON.stringify(singlePaperData, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                exportedFiles.push(fileName);
+                
+                console.log(`已导出论文 ${paperId} 到文件: ${fileName}`, {
+                    背景字数: singlePaperData.backgroundContent.length,
+                    内容字数: singlePaperData.mainContent.length,
+                    结论字数: singlePaperData.conclusionContent.length,
+                    首页图片数: singlePaperData.homepageImages.length,
+                    关键图片数: singlePaperData.keyImages.length
                 });
+                
+                // 添加短暂延迟，避免浏览器同时下载太多文件
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
         }
         
+        // 同时导出一个索引文件，记录所有论文的文件名
+        const indexData = {
+            paperCount: totalPapers,
+            exportedFiles: exportedFiles,
+            exportDate: new Date().toISOString()
+        };
+        
+        const indexJsonStr = JSON.stringify(indexData, null, 2);
+        const indexBlob = new Blob([indexJsonStr], { type: 'application/json' });
+        const indexUrl = URL.createObjectURL(indexBlob);
+        
+        const indexA = document.createElement('a');
+        indexA.href = indexUrl;
+        indexA.download = 'paperIndex.json';
+        document.body.appendChild(indexA);
+        indexA.click();
+        document.body.removeChild(indexA);
+        URL.revokeObjectURL(indexUrl);
+        
         console.log(`导出统计: ${totalPapers} 篇论文, ${totalImages} 张图片`);
+        console.log(`导出的文件: ${exportedFiles.join(', ')}`);
         
-        // 导出JSON文件
-        const jsonStr = JSON.stringify(exportData, null, 2);
-        console.log('导出的JSON数据格式:', jsonStr.substring(0, 500) + '...');
-        
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'paperDetails.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        showNotification(`成功导出 ${totalPapers} 篇论文的详情数据和 ${totalImages} 张图片`, 'success');
+        showNotification(`成功导出 ${totalPapers} 篇论文的详情数据（${exportedFiles.length}个文件）和 ${totalImages} 张图片`, 'success');
         
     } catch (error) {
         console.error('导出论文详情数据失败:', error);
@@ -1521,3 +1529,4 @@ window.editStudent = editStudent;
 window.deleteStudent = deleteStudent;
 window.editConference = editConference;
 window.deleteConference = deleteConference;
+
