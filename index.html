@@ -161,7 +161,7 @@
             background-color: rgba(249, 115, 22, 0.1);
         }
         
-        /* 导出区域样式 */
+                /* 导出区域样式 */
         .export-section {
             background: linear-gradient(135deg, #7c3aed, #8b5cf6);
             border-radius: 20px;
@@ -170,6 +170,19 @@
         .export-section:hover {
             transform: translateY(-5px);
             box-shadow: 0 20px 40px rgba(124, 58, 237, 0.3);
+        }
+
+        /* 加载指示器动画 */
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+
+        #loadingIndicator {
+          transition: opacity 0.3s ease-out;
         }
     </style>
 </head>
@@ -450,4 +463,5 @@
     <script src="main.js"></script>
 </body>
 </html>
+
 
