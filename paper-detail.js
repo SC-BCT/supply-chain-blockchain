@@ -313,104 +313,40 @@ async function loadPaperDetails() {
         }
     }
 
-// 加载论文详情数据 - 修复版，支持分页JSON文件
-async function loadPaperDetails() {
-    console.log(`开始加载论文${currentPaperId}的详情数据`);
-    
-    let paperDetails = null;
-    
-    // 尝试顺序：1. IndexedDB, 2. localStorage, 3. 分页JSON文件
-    try {
-        // 1. 从IndexedDB加载
-        const indexedDBData = await IndexedDBManager.getPaperDetails(currentPaperId);
-        if (indexedDBData) {
-            console.log(`从IndexedDB获取到论文${currentPaperId}的详情`, indexedDBData);
-            paperDetails = indexedDBData;
-        }
-    } catch (error) {
-        console.log('从IndexedDB加载失败:', error);
-    }
-    
-    // 2. 从localStorage加载
-    if (!paperDetails) {
-        const localPaperDetails = DataManager.load('paperDetails', {});
-        // 尝试用数字ID和字符串ID两种方式查找
-        if (localPaperDetails[currentPaperId] || localPaperDetails[String(currentPaperId)]) {
-            paperDetails = localPaperDetails[currentPaperId] || localPaperDetails[String(currentPaperId)];
-            console.log(`从localStorage获取到论文${currentPaperId}的详情`, paperDetails);
-        }
-    }
-
-    // 3. 从分页JSON文件加载
+    // 3. 从paperDetails.json加载
     if (!paperDetails) {
         try {
-            console.log('尝试从分页JSON文件加载数据...');
-            
-            // 首先加载索引文件确定应该加载哪个文件
-            let targetFileName = null;
-            
-            try {
-                const indexResponse = await fetch('paperIndex.json');
-                if (indexResponse.ok) {
-                    const indexData = await indexResponse.json();
-                    console.log('索引文件数据:', indexData);
-                    
-                    // 查找包含当前论文ID的文件
-                    for (const [fileName, fileInfo] of Object.entries(indexData)) {
-                        // 如果是单论文模式，直接比较论文ID
-                        if (fileInfo.paperIds && fileInfo.paperIds.includes(currentPaperId)) {
-                            targetFileName = fileName;
-                            console.log(`论文ID ${currentPaperId} 在文件 ${fileName} 中`);
-                            break;
-                        }
-                        // 兼容原来的范围检查
-                        if (fileInfo.range && Array.isArray(fileInfo.range)) {
-                            const [minId, maxId] = fileInfo.range;
-                            if (currentPaperId >= minId && currentPaperId <= maxId) {
-                                targetFileName = fileName;
-                                console.log(`论文ID ${currentPaperId} 在文件 ${fileName} 中 (范围: ${minId}-${maxId})`);
-                                break;
-                            }
-                        }
-                    }
-                }
-            } catch (indexError) {
-                console.log('索引文件不存在或加载失败，尝试直接按计算方式查找:', indexError);
-            }
-            
-            // 如果没有索引文件或找不到，按计算方式确定文件名
-            if (!targetFileName) {
-                // 关键修改：现在是每个论文一个文件，文件编号就是论文ID
-                const paddedNum = String(currentPaperId).padStart(2, '0');
-                targetFileName = `paperDetails${paddedNum}.json`;
-                console.log(`通过计算确定文件: ${targetFileName} (论文ID: ${currentPaperId})`);
-            }
-            
-            // 加载目标文件
-            console.log(`正在加载文件: ${targetFileName}`);
-            const response = await fetch(targetFileName);
+            console.log('尝试从paperDetails.json加载数据...');
+            const response = await fetch('paperDetails.json');
             if (response.ok) {
                 const jsonData = await response.json();
-                console.log(`从 ${targetFileName} 加载的数据:`, jsonData);
+                console.log('从paperDetails.json加载的数据:', jsonData);
                 
-                // 尝试用数字ID和字符串ID两种方式查找
+                // 检查数据格式
                 if (jsonData && typeof jsonData === 'object') {
-                    // 单论文文件应该只包含一个键值对
+                    // 格式1: { "1": {...}, "2": {...} } 或 { 1: {...}, 2: {...} }
+                    // 尝试用数字ID和字符串ID两种方式查找
                     if (jsonData[currentPaperId] || jsonData[String(currentPaperId)]) {
                         paperDetails = jsonData[currentPaperId] || jsonData[String(currentPaperId)];
-                        console.log(`从 ${targetFileName} 找到论文${currentPaperId}的详情:`, paperDetails);
-                    } else {
-                        // 如果文件里只有一个键，可能是其他格式，尝试获取第一个值
-                        const keys = Object.keys(jsonData);
-                        if (keys.length === 1) {
-                            paperDetails = jsonData[keys[0]];
-                            console.log(`从 ${targetFileName} 找到唯一的论文详情:`, paperDetails);
+                        console.log(`从对象格式找到论文${currentPaperId}的详情:`, paperDetails);
+                    }
+                    // 格式2: [{paperId: 1, ...}, {paperId: 2, ...}]
+                    else if (Array.isArray(jsonData)) {
+                        console.log('数据是数组格式，搜索论文ID:', currentPaperId);
+                        const item = jsonData.find(item => {
+                            const id = item.paperId || item.id;
+                            return id && (parseInt(id) === currentPaperId || String(id) === String(currentPaperId));
+                        });
+                        
+                        if (item) {
+                            paperDetails = item;
+                            console.log(`从数组格式找到论文${currentPaperId}的详情:`, paperDetails);
                         }
                     }
                 }
                 
                 if (paperDetails) {
-                    console.log(`从 ${targetFileName} 成功找到论文${currentPaperId}的详情`);
+                    console.log(`从paperDetails.json成功找到论文${currentPaperId}的详情`);
                     
                     // 保存到localStorage和IndexedDB
                     const localPaperDetails = DataManager.load('paperDetails', {});
@@ -421,103 +357,9 @@ async function loadPaperDetails() {
                 }
             }
         } catch (error) {
-            console.log('从分页JSON文件加载失败:', error);
-            
-            // 作为后备方案，尝试加载旧的单个文件（批量文件）
-            try {
-                console.log('尝试加载旧的 paperDetails.json 文件作为后备...');
-                const fallbackResponse = await fetch('paperDetails.json');
-                if (fallbackResponse.ok) {
-                    const fallbackData = await fallbackResponse.json();
-                    console.log('从旧文件加载的数据:', fallbackData);
-                    
-                    if (fallbackData && typeof fallbackData === 'object') {
-                        if (fallbackData[currentPaperId] || fallbackData[String(currentPaperId)]) {
-                            paperDetails = fallbackData[currentPaperId] || fallbackData[String(currentPaperId)];
-                            console.log(`从旧文件找到论文${currentPaperId}的详情:`, paperDetails);
-                        } else if (Array.isArray(fallbackData)) {
-                            const item = fallbackData.find(item => {
-                                const id = item.paperId || item.id;
-                                return id && (parseInt(id) === currentPaperId || String(id) === String(currentPaperId));
-                            });
-                            
-                            if (item) {
-                                paperDetails = item;
-                                console.log(`从数组格式找到论文${currentPaperId}的详情:`, paperDetails);
-                            }
-                        }
-                    }
-                }
-            } catch (fallbackError) {
-                console.log('旧文件加载也失败:', fallbackError);
-                
-                // 如果以上都失败，可以尝试按序号加载其他可能的文件格式
-                // 例如，有些文件可能命名为 paperDetail_01.json 等
-                try {
-                    console.log('尝试其他命名格式的文件...');
-                    // 尝试几种可能的文件名格式
-                    const possibleFilenames = [
-                        `paperDetail_${String(currentPaperId).padStart(2, '0')}.json`,
-                        `paper_${String(currentPaperId).padStart(2, '0')}.json`,
-                        `data_${String(currentPaperId).padStart(2, '0')}.json`
-                    ];
-                    
-                    for (const filename of possibleFilenames) {
-                        try {
-                            const altResponse = await fetch(filename);
-                            if (altResponse.ok) {
-                                const altData = await altResponse.json();
-                                // 假设文件中直接就是论文详情对象
-                                if (altData && typeof altData === 'object') {
-                                    paperDetails = altData;
-                                    console.log(`从 ${filename} 找到论文详情:`, paperDetails);
-                                    break;
-                                }
-                            }
-                        } catch (e) {
-                            // 继续尝试下一个文件名
-                        }
-                    }
-                } catch (lastError) {
-                    console.log('所有文件加载尝试都失败:', lastError);
-                }
-            }
+            console.log('从paperDetails.json加载失败:', error);
         }
     }
-    
-    // 4. 创建默认数据
-    if (!paperDetails) {
-        console.log(`为论文${currentPaperId}创建默认详情数据`);
-        paperDetails = {
-            backgroundContent: '请添加研究背景信息',
-            mainContent: '请添加研究内容信息',
-            conclusionContent: '请添加研究结论信息',
-            linkContent: '暂无全文链接',
-            homepageImages: [],
-            keyImages: []
-        };
-        
-        // 保存默认数据
-        const localPaperDetails = DataManager.load('paperDetails', {});
-        localPaperDetails[currentPaperId] = paperDetails;
-        DataManager.save('paperDetails', localPaperDetails);
-        
-        await IndexedDBManager.savePaperDetails(currentPaperId, paperDetails);
-    }
-    
-    // 确保数据结构完整
-    const completePaperDetails = {
-        backgroundContent: paperDetails.backgroundContent || '请添加研究背景信息',
-        mainContent: paperDetails.mainContent || '请添加研究内容信息',
-        conclusionContent: paperDetails.conclusionContent || '请添加研究结论信息',
-        linkContent: paperDetails.linkContent || '暂无全文链接',
-        homepageImages: paperDetails.homepageImages || [],
-        keyImages: paperDetails.keyImages || []
-    };
-    
-    console.log(`最终渲染的论文详情:`, completePaperDetails);
-    renderPaperDetails(completePaperDetails);
-}
     
     // 4. 创建默认数据
     if (!paperDetails) {
@@ -1271,4 +1113,3 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
-
