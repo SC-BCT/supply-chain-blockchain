@@ -461,6 +461,11 @@ function renderPaperDetails(paperDetails) {
 
 // 格式化文本为段落
 function formatTextWithParagraphs(text) {
+     // 隐藏加载状态
+    const loadingMask = document.querySelector('.loading-mask');
+    if (loadingMask) {
+        loadingMask.remove();
+    }
     if (!text || text.trim() === '' || text === '请添加研究背景信息' || text === '请添加研究内容信息' || text === '请添加研究结论信息') {
         return '<p class="text-gray-500 italic">暂无内容</p>';
     }
@@ -1149,5 +1154,6 @@ window.openImageModal = openImageModal;
 window.closeImageModal = closeImageModal;
 window.deleteImage = deleteImage;
 window.triggerImageUpload = triggerImageUpload;
+
 
 
